@@ -7,7 +7,6 @@ import streamlit as st
 
 st.set_page_config(layout="wide")
 
-
 @st.cache_data
 def load_data():
     with open("enriched_masterclasses.json", "r", encoding='utf-8') as f:
@@ -17,12 +16,10 @@ def load_data():
     df['registration_deadline'] = pd.to_datetime(df['registration_deadline'])
     return df
 
-
 @st.cache_data
 def load_geojson():
     gdf = gpd.read_file("output.geojson")
     return gdf
-
 
 def filter_geodata(gdf, category, start_time):
     gdf_filtered = gdf.copy()
@@ -33,7 +30,6 @@ def filter_geodata(gdf, category, start_time):
         gdf_filtered = gdf_filtered[(gdf_filtered['start_time'] >= pd.to_datetime(start_time[0])) &
                                     (gdf_filtered['start_time'] <= pd.to_datetime(start_time[1]))]
     return gdf_filtered
-
 
 def show_map(gdf):
     st.write("## Карта мероприятий:", "Показаны места проведения выбранных мероприятий.")
@@ -65,8 +61,8 @@ def show_map(gdf):
             data=gdf,
             get_point_radius=10000,
             get_fill_color='[200, 30, 0, 160]',
-            pickable=True,  # Включение взаимодействия с элементами
-            auto_highlight=True,  # Автоматическое выделение элементов при наведении
+            pickable=True,
+            auto_highlight=True,
         )
     ]
 
@@ -74,12 +70,11 @@ def show_map(gdf):
         map_style='mapbox://styles/mapbox/light-v9',
         initial_view_state=view_state,
         layers=layers,
-        tooltip=tooltip,  # Подключение всплывающих подсказок
+        tooltip=tooltip,
         map_provider='mapbox',
     )
 
     st.pydeck_chart(r)
-
 
 def plot_histogram(df, column, sort_by):
     st.write(f"## Распределение мастер-классов по {column}",
@@ -92,11 +87,13 @@ def plot_histogram(df, column, sort_by):
         count_df = count_df.sort_values(by='count', ascending=False)
     fig = px.bar(count_df, y=column, x='count', orientation='h', title=f'Распределение мастер-классов по {column}',
                  labels={'count': 'Количество мастер-классов', f'{column}': column})
-    fig.update_layout(width=1200, height=800)
+    fig.update_layout(width=1200, height=800, title_font_size=40, xaxis_title_font_size=30, yaxis_title_font_size=30,
+                      legend_title_font_size=30, legend_font_size=24)
+    fig.update_traces(textfont_size=20)
     st.plotly_chart(fig)
 
-
 df = load_data()
+df['categories'] = df['categories'].apply(lambda x: x if isinstance(x, list) else [])
 gdf = load_geojson()
 
 option = st.selectbox(
@@ -129,11 +126,12 @@ if option == 'Категории':
     other_percentage = category_percentages[small_categories].sum()
     category_counts['Остальные'] = other_percentage
     category_counts = category_counts.drop(small_categories)
+    category_counts = category_counts[category_counts > 0]
     st.write("## Распределение мастер-классов по категориям",
              "График показывает распределение мастер-классов по категориям.")
     fig = px.pie(values=category_counts, names=category_counts.index)
-    fig.update_traces(textinfo='percent', textposition='inside', textfont=dict(size=15))
-    fig.update_layout(height=650, width=850)
+    fig.update_traces(textinfo='percent', textposition='inside', textfont=dict(size=45))
+    fig.update_layout(height=850, width=1400, legend_title_font_size=36, legend_font_size=36)
     st.plotly_chart(fig)
 elif option == 'Временной диапазон':
     df_time_grouped = filtered_df.groupby(filtered_df['start_time'].dt.date).count()['title'].reset_index()
@@ -142,8 +140,9 @@ elif option == 'Временной диапазон':
     fig = px.line(df_time_grouped, x='start_time', y='count', title='Распределение мастер-классов по времени',
                   labels={'start_time': 'Дата', 'count': 'Количество мастер-классов'})
     fig.update_xaxes(dtick="M1", tickformat="%b\n%Y")
-    fig.update_layout(height=600, width=800)
-
+    fig.update_layout(height=600, width=800, title_font_size=40, xaxis_title_font_size=30, yaxis_title_font_size=30,
+                      legend_title_font_size=30, legend_font_size=24)
+    fig.update_traces(textfont_size=20)
     st.plotly_chart(fig)
 
 elif option == 'Регионы':
@@ -154,16 +153,19 @@ elif option == 'Города':
 st.write(filtered_df[['title', 'location_name', 'start_time', 'categories']])
 show_map(filtered_gdf)
 
-
-def analyze_speakers(df):
+def analyze_speakers(df, sort_by):
     all_speakers = []
     for index, row in df.iterrows():
         for speaker in row['speakers']:
             all_speakers.append(speaker['name'])
 
-    # Подсчитываем количество упоминаний каждого спикера
     speaker_counts = pd.Series(all_speakers).value_counts().reset_index()
     speaker_counts.columns = ['Speaker', 'Events']
+
+    if sort_by == 'по возрастанию':
+        speaker_counts = speaker_counts.sort_values(by='Events', ascending=True)
+    else:
+        speaker_counts = speaker_counts.sort_values(by='Events', ascending=False)
 
     st.write("## Спикеры", "График показывает распределение спикеров по мастер-классам.")
     fig = px.bar(speaker_counts, x='Events', y='Speaker', orientation='h',
@@ -171,13 +173,12 @@ def analyze_speakers(df):
             'Speaker': 'Спикер',
             'Events': 'Количество мастер-классов'
         })
-    fig.update_layout(width=1200, height=800)
+    fig.update_layout(width=1200, height=800, title_font_size=40, xaxis_title_font_size=36, yaxis_title_font_size=36,
+                      legend_title_font_size=30, legend_font_size=24)
+    fig.update_traces(textfont_size=24)
     st.plotly_chart(fig)
 
-
-# Вызов функции
-analyze_speakers(df)
-
+analyze_speakers(filtered_df, sort_by)
 
 def show_heatmap(gdf):
     df = gdf.copy()
@@ -209,7 +210,6 @@ def show_heatmap(gdf):
 
     st.write("## Теплокарта мероприятий:", "показаны места проведения выбранных мероприятий.")
     st.pydeck_chart(r)
-
 
 filtered_gdf = filter_geodata(gdf, category, start_time)
 
